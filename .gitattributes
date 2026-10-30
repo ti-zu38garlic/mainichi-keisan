@@ -1,2 +1,3 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# index.html のスクリプトはハッシュ値で許可しているため、改行コードを変えない
+*.html text eol=lf
+*.md text eol=lf

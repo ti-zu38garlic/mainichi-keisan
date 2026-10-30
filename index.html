@@ -1,0 +1,943 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-C1U8xNrFF+873xqoRHdKx3YSHuAM8uyqRKPQ0/Pu38o='; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data:; base-uri 'none'; form-action 'none'">
+<meta name="description" content="日めくりをめくるように解く、高齢の方向けの計算ゲームと豆知識つき4択クイズ。">
+<meta name="theme-color" content="#1b2a4a">
+<style>
+html { height: 100%; }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; }
+</style>
+<title>まいにち計算</title>
+<meta name="referrer" content="no-referrer">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Shippori+Mincho+B1:wght@700;800&family=Yuji+Syuku&display=swap">
+<style>
+/* Layout: 藍の壁に掛けた「日めくり」。1問＝1枚。正解で朱の花丸、めくって次の問題へ。
+   色の世界をひとつに決めたデザインのため、テーマ切り替えは持たず全色を明示する */
+:root {
+  --ai: #1b2a4a;          /* 藍：壁 */
+  --ai-deep: #111c34;
+  --ai-line: rgba(255, 255, 255, 0.06);
+  --washi: #f8f8f4;       /* 日めくりの紙 */
+  --washi-edge: #d9dbe0;
+  --sumi: #1c1f26;        /* 墨 */
+  --nezumi: #5d6270;
+  --shu: #cf3b2b;         /* 朱：花丸・判子 */
+  --gunjo: #2b56a6;       /* 土曜の青 */
+  --wall-ink: #eef1f8;
+  --wall-muted: #b4bed4;
+  --f-brush: "Yuji Syuku", "Shippori Mincho B1", serif;
+  --f-num: "Shippori Mincho B1", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --f-body: "BIZ UDPGothic", "Hiragino Sans", "Meiryo", sans-serif;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background-color: var(--ai);
+  background-image:
+    radial-gradient(circle at 50% 100%, transparent 0 5px, var(--ai-line) 5px 6.5px, transparent 6.5px 11px, var(--ai-line) 11px 12.5px, transparent 12.5px 17px, var(--ai-line) 17px 18.5px, transparent 18.5px),
+    radial-gradient(circle at 50% 100%, transparent 0 5px, var(--ai-line) 5px 6.5px, transparent 6.5px 11px, var(--ai-line) 11px 12.5px, transparent 12.5px 17px, var(--ai-line) 17px 18.5px, transparent 18.5px),
+    linear-gradient(180deg, var(--ai) 0%, var(--ai-deep) 100%);
+  background-size: 40px 20px, 40px 20px, 100% 100%;
+  background-position: 0 0, 20px 10px, 0 0;
+  background-attachment: scroll, scroll, fixed;
+  color: var(--wall-ink);
+  font-family: var(--f-body); font-size: 20px; line-height: 1.6;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 100%;
+}
+.app {
+  max-width: 500px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 18px 36px;
+}
+section { display: flex; flex-direction: column; gap: 22px; }
+h1, h2, p { margin: 0; }
+button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
+button:focus-visible { outline: 4px solid #ffd27a; outline-offset: 3px; }
+
+/* ---------- 日めくり ---------- */
+.himekuri { position: relative; padding-top: 18px; }
+.binding {
+  position: absolute; top: 0; left: 6%; right: 6%; height: 30px; z-index: 3;
+  background: linear-gradient(180deg, #2c2f37, #16181d);
+  border-radius: 8px 8px 3px 3px;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.35);
+  display: flex; justify-content: space-around; align-items: center;
+}
+.binding::after {
+  content: "日めくり"; position: absolute; inset: 0; display: grid; place-items: center;
+  font-family: var(--f-brush); font-size: 0.8rem; letter-spacing: 0.4em; color: #c9ad6e;
+}
+.ring { width: 12px; height: 12px; border-radius: 50%; background: var(--ai-deep); box-shadow: inset 0 1px 2px #000; }
+.stack { position: relative; border-radius: 4px; }
+.sheet {
+  position: relative; z-index: 2;
+  background: var(--washi); color: var(--sumi);
+  border-radius: 3px 3px 6px 6px;
+  padding: 30px 20px 20px;
+  box-shadow: 0 18px 30px -12px rgba(0, 0, 0, 0.55);
+  background-image:
+    linear-gradient(180deg, rgba(28, 31, 38, 0.06), transparent 22px),
+    repeating-linear-gradient(90deg, transparent 0 3px, rgba(28, 31, 38, 0.012) 3px 4px);
+  transform-origin: 50% 0;
+  overflow: hidden;
+}
+.sheet::before { /* ミシン目 */
+  content: ""; position: absolute; top: 8px; left: 14px; right: 14px; height: 0;
+  border-top: 2px dotted var(--washi-edge);
+}
+.sheet-top {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+  font-family: var(--f-num); font-weight: 700; font-size: 1.05rem; color: var(--nezumi);
+  border-bottom: 1px solid var(--washi-edge); padding-bottom: 8px;
+}
+.sheet-top b { color: var(--sumi); font-size: 1.35rem; }
+
+/* ホームの日めくり */
+.title-block { display: flex; flex-direction: column; gap: 4px; padding-inline: 4px; }
+h1 {
+  font-family: var(--f-brush); font-weight: 400; font-size: clamp(2.2rem, 11vw, 3.4rem);
+  line-height: 1.15; letter-spacing: 0.03em; white-space: nowrap;
+}
+h1 .maru { color: var(--shu); }
+.title-block p { color: var(--wall-muted); font-size: 1.05rem; text-wrap: pretty; }
+.day {
+  font-family: var(--f-num); font-weight: 800; text-align: center;
+  font-size: clamp(6.5rem, 34vw, 9rem); line-height: 1; letter-spacing: -0.03em;
+  font-variant-numeric: lining-nums tabular-nums; padding-top: 14px;
+}
+.weekday { text-align: center; font-family: var(--f-num); font-weight: 800; font-size: 1.6rem; letter-spacing: 0.2em; }
+.is-sun { color: var(--shu); }
+.is-sat { color: var(--gunjo); }
+.sheet-foot {
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--washi-edge);
+  display: flex; justify-content: center; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  font-weight: 700; color: var(--nezumi);
+}
+.sheet-foot b { font-family: var(--f-num); font-size: 2.1rem; color: var(--shu); font-variant-numeric: tabular-nums; }
+
+/* ---------- 選択 ---------- */
+.group { display: flex; flex-direction: column; gap: 12px; }
+h2 {
+  font-family: var(--f-brush); font-weight: 400; font-size: 1.45rem; letter-spacing: 0.08em;
+  display: flex; align-items: center; gap: 12px;
+}
+h2::after { content: ""; flex: 1; height: 1px; background: rgba(255, 255, 255, 0.2); }
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.choice {
+  position: relative; display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 12px;
+  min-height: 92px; padding: 12px 14px; text-align: left;
+  background: var(--washi); color: var(--sumi);
+  border: 4px solid transparent; border-radius: 10px;
+  box-shadow: 0 5px 0 #0c1426;
+}
+.choice:active { transform: translateY(3px); box-shadow: 0 2px 0 #0c1426; }
+.choice .sym { font-family: var(--f-num); font-weight: 800; font-size: 2.3rem; line-height: 1; color: var(--ai); grid-row: span 2; }
+.choice .name { font-weight: 700; font-size: 1.15rem; line-height: 1.3; }
+.choice .ex { color: var(--nezumi); font-size: 1rem; line-height: 1.3; }
+.choice[aria-pressed="true"] { border-color: var(--shu); }
+.choice[aria-pressed="true"] .sym { color: var(--shu); }
+.choice[aria-pressed="true"]::after {
+  content: "選択中"; position: absolute; top: -12px; right: 8px;
+  background: var(--shu); color: #fff; font-size: 0.9rem; font-weight: 700;
+  padding: 1px 8px; border-radius: 4px; letter-spacing: 0.08em;
+}
+.choices.levels, .choices.list { grid-template-columns: 1fr; }
+.levels .choice { display: flex; align-items: center; gap: 14px; min-height: 68px; padding-inline: 18px; }
+.list .choice { min-height: 76px; padding-inline: 18px; column-gap: 16px; }
+.levels .choice .name, .list .choice .name { font-size: 1.25rem; }
+.list .choice .sym { width: 1.2em; text-align: center; }
+.genres .choice { min-height: 72px; grid-template-columns: 1fr; }
+.genres .choice .name { font-size: 1.1rem; }
+#q-all { grid-column: 1 / -1; }
+
+.big {
+  min-height: 80px; width: 100%; border: none; border-radius: 12px;
+  background: var(--shu); color: #fff;
+  font-family: var(--f-brush); font-size: 1.9rem; letter-spacing: 0.25em;
+  box-shadow: 0 6px 0 #7e1f15, 0 14px 24px -10px rgba(0, 0, 0, 0.6);
+}
+.big:active { transform: translateY(4px); box-shadow: 0 2px 0 #7e1f15; }
+.sub {
+  min-height: 64px; width: 100%; border-radius: 12px;
+  background: transparent; border: 2px solid rgba(255, 255, 255, 0.45); color: var(--wall-ink);
+  font-weight: 700; font-size: 1.15rem;
+}
+.toggle {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-height: 64px; padding: 0 18px; border-radius: 12px; width: 100%;
+  background: rgba(255, 255, 255, 0.06); border: 2px solid rgba(255, 255, 255, 0.25); font-weight: 700;
+}
+.switch { position: relative; width: 64px; height: 36px; border-radius: 18px; background: #5b6478; flex: none; }
+.switch::after { content: ""; position: absolute; top: 4px; left: 4px; width: 28px; height: 28px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.toggle[aria-pressed="true"] .switch { background: var(--shu); }
+.toggle[aria-pressed="true"] .switch::after { transform: translateX(28px); }
+
+/* ---------- 問題 ---------- */
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.quit {
+  min-height: 52px; padding: 0 18px; border-radius: 10px;
+  background: transparent; border: 2px solid rgba(255, 255, 255, 0.45); font-weight: 700;
+}
+.marks { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+.mark { width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.3); }
+.mark.now { border-color: #fff; background: rgba(255, 255, 255, 0.25); }
+.mark.ok { border: 3px solid var(--shu); background: var(--washi); }
+.mark.ng { border-color: var(--wall-muted); background: var(--wall-muted); }
+.play-cal .sheet { padding-bottom: 16px; min-height: 300px; display: flex; flex-direction: column; }
+.formula {
+  font-family: var(--f-num); font-weight: 800; font-variant-numeric: lining-nums tabular-nums;
+  font-size: clamp(3rem, 15vw, 4.4rem); line-height: 1.1; text-align: center; white-space: nowrap;
+  padding-top: 26px;
+}
+.formula.long { font-size: clamp(1.9rem, 10.5vw, 3.6rem); padding-top: 30px; }
+.answer-row { display: flex; justify-content: center; align-items: center; gap: 14px; padding-top: 10px; }
+.answer-row .lbl { font-family: var(--f-brush); font-size: 1.2rem; color: var(--nezumi); }
+.answer {
+  min-width: 3.2em; text-align: center;
+  font-family: var(--f-num); font-weight: 800; font-size: clamp(2.8rem, 14vw, 3.8rem); line-height: 1.15;
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--ai); border-bottom: 4px dashed var(--ai);
+}
+.answer.empty { color: var(--washi-edge); }
+.answer.red { color: var(--shu); border-bottom-color: var(--shu); }
+.feedback {
+  margin-top: auto; padding-top: 12px; min-height: 2.6em;
+  display: grid; place-items: center; text-align: center;
+  font-family: var(--f-brush); font-size: 1.4rem; line-height: 1.3; color: var(--nezumi);
+}
+.feedback.ok { color: var(--shu); }
+.feedback.ng { color: var(--ai); }
+.hanamaru {
+  position: absolute; left: 50%; top: 50%; width: 230px; height: 230px; margin: -125px 0 0 -115px;
+  pointer-events: none; overflow: visible; opacity: 0.88; z-index: 1;
+}
+.hanamaru path { fill: none; stroke: var(--shu); stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
+.sheet > *:not(.hanamaru) { position: relative; z-index: 2; }
+.play-cal .sheet::before { z-index: 2; }
+
+.pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.key {
+  min-height: 70px; border-radius: 10px; border: none;
+  background: var(--washi); color: var(--sumi);
+  font-family: var(--f-body); font-size: 2.2rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  box-shadow: 0 5px 0 #0c1426;
+}
+.key:active { transform: translateY(4px); box-shadow: 0 1px 0 #0c1426; }
+.key.fn { font-size: 1.1rem; background: #dfe3ec; }
+.key.go { background: var(--shu); color: #fff; font-family: var(--f-brush); font-weight: 400; font-size: 1.45rem; box-shadow: 0 5px 0 #7e1f15; }
+.key.go:active { box-shadow: 0 1px 0 #7e1f15; }
+.pad[aria-disabled="true"] .key { opacity: 0.5; }
+
+/* ---------- 結果 ---------- */
+.result-cal .sheet { display: flex; flex-direction: column; align-items: center; gap: 14px; padding-bottom: 26px; text-align: center; }
+.result-cal .sheet-top { align-self: stretch; }
+.stamp {
+  margin-top: 18px; width: 210px; height: 210px; border-radius: 50%;
+  border: 7px double var(--shu); color: var(--shu);
+  display: grid; place-content: center; gap: 2px;
+  font-family: var(--f-brush); font-size: 1.9rem; line-height: 1.25;
+  transform: rotate(-9deg); opacity: 0.92;
+  -webkit-mask-image: repeating-radial-gradient(circle at 30% 40%, #000 0 2px, rgba(0,0,0,.82) 2px 3px);
+  mask-image: repeating-radial-gradient(circle at 30% 40%, #000 0 2px, rgba(0,0,0,.82) 2px 3px);
+}
+.stamp span { display: block; }
+.score { font-family: var(--f-num); font-weight: 800; font-size: 4.2rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.score small { font-size: 1.5rem; color: var(--nezumi); font-weight: 700; }
+.detail { color: var(--nezumi); font-weight: 700; }
+.actions { display: flex; flex-direction: column; gap: 14px; }
+
+/* ---------- 4択クイズ ---------- */
+#calcOpts { gap: 22px; }
+.quiz-note { color: var(--wall-muted); font-size: 1.05rem; padding-inline: 4px; }
+.chip { font-family: var(--f-body); font-size: 1rem; font-weight: 700; color: #fff; background: var(--ai); border-radius: 4px; padding: 1px 10px; letter-spacing: 0.06em; }
+.chip.jiji { background: var(--shu); }
+.quiz-cal .sheet { min-height: 240px; display: flex; flex-direction: column; }
+.quiz-q { font-size: 1.45rem; font-weight: 700; line-height: 1.6; padding-top: 18px; text-wrap: pretty; }
+.quiz-cal .feedback { margin-top: 10px; }
+.mame { margin-top: 6px; padding: 12px 14px; background: #edf0f6; border-radius: 8px; font-size: 1.05rem; line-height: 1.75; }
+.mame b { display: block; font-family: var(--f-brush); font-weight: 400; color: var(--shu); font-size: 1.2rem; letter-spacing: 0.1em; }
+.opts { display: grid; gap: 12px; }
+.opt {
+  display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 14px;
+  min-height: 72px; padding: 10px 16px; text-align: left;
+  background: var(--washi); color: var(--sumi); border: 4px solid transparent; border-radius: 10px;
+  box-shadow: 0 5px 0 #0c1426; font-size: 1.25rem; font-weight: 700; line-height: 1.4;
+}
+.opt:active { transform: translateY(3px); box-shadow: 0 2px 0 #0c1426; }
+.opt .kana {
+  width: 1.9em; height: 1.9em; border-radius: 50%; border: 2px solid var(--ai); color: var(--ai);
+  display: grid; place-items: center; font-family: var(--f-brush); font-weight: 400; font-size: 1.25rem;
+}
+.opt.right { border-color: var(--shu); }
+.opt.right .kana { background: var(--shu); border-color: var(--shu); color: #fff; }
+.opt.wrong { background: #c9ced9; }
+.opts[aria-disabled="true"] .opt:not(.right):not(.wrong) { opacity: 0.45; }
+.opts[aria-disabled="true"] .opt { transform: none; }
+
+/* 画面の低いスマホでも「こたえる」まで1画面に収める */
+@media (max-height: 760px) {
+  .app { padding-block: 8px 16px; }
+  #play { gap: 12px; }
+  .himekuri { padding-top: 14px; }
+  .play-cal .sheet { min-height: 0; padding-top: 22px; padding-bottom: 10px; }
+  .formula { padding-top: 8px; }
+  .answer-row { padding-top: 2px; }
+  .feedback { min-height: 1.8em; padding-top: 4px; }
+  .key { min-height: 58px; }
+}
+@media (max-height: 700px) {
+  .quit { min-height: 46px; }
+  .pad { gap: 8px; }
+  .key { min-height: 52px; font-size: 2rem; }
+  .play-cal .sheet-top { padding-bottom: 4px; }
+  .answer { font-size: clamp(2.4rem, 12vw, 3rem); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sheet.tear { animation: tear .5s cubic-bezier(.5, 0, .75, 0) forwards; }
+  .sheet.enter { animation: enter .35s ease-out; }
+  .stamp.press { animation: press .45s cubic-bezier(.2, 1.4, .4, 1); }
+  .feedback.pop { animation: pop .35s ease-out; }
+  @keyframes tear { 0% { transform: none; } 30% { transform: rotate(-3deg) translateY(-4px); } 100% { transform: rotate(-14deg) translate(-30px, -90px); opacity: 0; } }
+  @keyframes enter { from { filter: brightness(.9); transform: translateY(6px); } to { filter: none; transform: none; } }
+  @keyframes press { 0% { transform: rotate(-9deg) scale(1.7); opacity: 0; } 100% { transform: rotate(-9deg) scale(1); opacity: .92; } }
+  @keyframes pop { 0% { transform: scale(.85); } 60% { transform: scale(1.08); } 100% { transform: scale(1); } }
+}
+</style>
+</head>
+<body>
+<main class="app">
+  <!-- ホーム -->
+  <section id="home">
+    <div class="title-block">
+      <h1>まいにち計算<span class="maru">。</span></h1>
+      <p>一日一枚ずつ、めくるように。1回10問です。</p>
+    </div>
+
+    <div class="himekuri">
+      <div class="binding"><span class="ring"></span><span class="ring"></span></div>
+      <div class="stack" id="homeStack">
+        <div class="sheet">
+          <div class="sheet-top"><span id="wareki">令和八年</span><span id="month">十月</span></div>
+          <div class="day" id="day">30</div>
+          <div class="weekday" id="weekday">金曜日</div>
+          <div class="sheet-foot" aria-live="polite">今日の正解<b id="todayCount">0</b>問</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>なにをしますか</h2>
+      <div class="choices list" id="games">
+        <button class="choice" id="g-calc" data-game="calc" aria-pressed="true"><span class="sym">＋</span><span class="name">計算</span><span class="ex">数字で答える</span></button>
+        <button class="choice" id="g-quiz" data-game="quiz" aria-pressed="false"><span class="sym">問</span><span class="name">4択クイズ</span><span class="ex">豆知識つき</span></button>
+        <button class="choice" id="g-mix" data-game="mix" aria-pressed="false"><span class="sym">混</span><span class="name">ごちゃまぜ</span><span class="ex">計算とクイズがまざる</span></button>
+      </div>
+    </div>
+
+    <div class="group" id="calcOpts">
+    <div class="group" id="modeGroup">
+      <h2>どの計算をしますか</h2>
+      <div class="choices" id="modes">
+        <button class="choice" id="m-add" data-mode="add" aria-pressed="true"><span class="sym">＋</span><span class="name">足し算</span><span class="ex">例 3＋5</span></button>
+        <button class="choice" id="m-sub" data-mode="sub" aria-pressed="false"><span class="sym">－</span><span class="name">引き算</span><span class="ex">例 9－4</span></button>
+        <button class="choice" id="m-mul" data-mode="mul" aria-pressed="false"><span class="sym">×</span><span class="name">掛け算</span><span class="ex">九九</span></button>
+        <button class="choice" id="m-mix" data-mode="mix" aria-pressed="false"><span class="sym">？</span><span class="name">おまかせ</span><span class="ex">いろいろ</span></button>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>むずかしさ</h2>
+      <div class="choices levels" id="levels">
+        <button class="choice" id="l-easy" data-level="easy" aria-pressed="true"><span class="name">やさしい</span><span class="ex">1けた中心</span></button>
+        <button class="choice" id="l-normal" data-level="normal" aria-pressed="false"><span class="name">ふつう</span><span class="ex">2けたも出ます</span></button>
+        <button class="choice" id="l-hard" data-level="hard" aria-pressed="false"><span class="name">むずかしい</span><span class="ex">3けたの計算</span></button>
+      </div>
+    </div>
+    </div>
+    <div class="group" id="quizOpts" hidden>
+      <h2>クイズのジャンル</h2>
+      <div class="choices genres" id="genres">
+        <button class="choice" id="q-all" data-genre="all" aria-pressed="true"><span class="name">おまかせ</span><span class="ex">時事も2問</span></button>
+        <button class="choice" id="q-trick" data-genre="trick" aria-pressed="false"><span class="name">ひっかけ問題</span><span class="ex">よく読んで</span></button>
+        <button class="choice" id="q-riddle" data-genre="riddle" aria-pressed="false"><span class="name">なぞなぞ</span><span class="ex">頭をやわらかく</span></button>
+        <button class="choice" id="q-word" data-genre="word" aria-pressed="false"><span class="name">ことわざ・漢字</span><span class="ex">読み方など</span></button>
+        <button class="choice" id="q-season" data-genre="season" aria-pressed="false"><span class="name">季節・くらし</span><span class="ex">行事や暦</span></button>
+        <button class="choice" id="q-history" data-genre="history" aria-pressed="false"><span class="name">歴史・地理</span><span class="ex">なつかしの話も</span></button>
+        <button class="choice" id="q-life" data-genre="life" aria-pressed="false"><span class="name">生きもの・食べもの</span><span class="ex">動物や料理</span></button>
+      </div>
+    </div>
+    <p class="quiz-note" id="quizNote" hidden></p>
+
+    <button class="big" id="startBtn">はじめる</button>
+    <button class="toggle" id="soundBtn" aria-pressed="true"><span>正解の音 <span id="soundState">あり</span></span><span class="switch" aria-hidden="true"></span></button>
+  </section>
+
+  <!-- 問題 -->
+  <section id="play" hidden>
+    <div class="bar">
+      <button class="quit" id="quitBtn">やめる</button>
+      <div class="marks" id="marks" aria-hidden="true"></div>
+    </div>
+    <div class="himekuri play-cal">
+      <div class="binding"><span class="ring"></span><span class="ring"></span></div>
+      <div class="stack" id="playStack">
+        <div class="sheet" id="qsheet">
+          <svg class="hanamaru" id="hana" viewBox="-50 -50 100 100" aria-hidden="true"><path id="hanaPath"></path></svg>
+          <div class="sheet-top"><span>第 <b id="qno">1</b> 問</span><span id="left">のこり 9 枚</span></div>
+          <div class="formula" id="qText" aria-live="polite">3 ＋ 5 ＝</div>
+          <div class="answer-row"><span class="lbl">こたえ</span><span class="answer empty" id="ans">？</span></div>
+          <p class="feedback" id="feedback" aria-live="assertive">数字を押して「こたえる」</p>
+        </div>
+      </div>
+    </div>
+    <div class="pad" id="pad">
+      <button class="key" data-k="7">7</button><button class="key" data-k="8">8</button><button class="key" data-k="9">9</button>
+      <button class="key" data-k="4">4</button><button class="key" data-k="5">5</button><button class="key" data-k="6">6</button>
+      <button class="key" data-k="1">1</button><button class="key" data-k="2">2</button><button class="key" data-k="3">3</button>
+      <button class="key fn" data-k="del">1字けす</button><button class="key" data-k="0">0</button><button class="key go" data-k="ok">こたえる</button>
+    </div>
+  </section>
+
+  <!-- 4択クイズ -->
+  <section id="quiz" hidden>
+    <div class="bar">
+      <button class="quit" id="quitQuizBtn">やめる</button>
+      <div class="marks" id="quizMarks" aria-hidden="true"></div>
+    </div>
+    <div class="himekuri quiz-cal">
+      <div class="binding"><span class="ring"></span><span class="ring"></span></div>
+      <div class="stack" id="quizStack">
+        <div class="sheet" id="zsheet">
+          <svg class="hanamaru" viewBox="-50 -50 100 100" aria-hidden="true"><path id="hanaPath2"></path></svg>
+          <div class="sheet-top"><span>第 <b id="zno">1</b> 問</span><span class="chip" id="ztag">季節</span></div>
+          <p class="quiz-q" id="zq" aria-live="polite">問題</p>
+          <p class="feedback" id="zfb" aria-live="assertive"></p>
+          <div class="mame" id="zmame" hidden><b>豆知識</b><span id="zmameText"></span></div>
+        </div>
+      </div>
+    </div>
+    <div class="opts" id="opts"></div>
+    <button class="big" id="nextBtn" hidden>つぎへ</button>
+  </section>
+
+  <!-- 結果 -->
+  <section id="result" hidden>
+    <div class="himekuri result-cal">
+      <div class="binding"><span class="ring"></span><span class="ring"></span></div>
+      <div class="stack">
+        <div class="sheet">
+          <div class="sheet-top"><span>きょうの成績</span><span id="resDate">十月三十日</span></div>
+          <div class="stamp" id="stamp"><span id="st1">よく</span><span id="st2">できました</span></div>
+          <p class="score"><span id="score">8</span><small> / 10問</small></p>
+          <p class="detail" id="detail">1回目で正解 6問</p>
+        </div>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="big" id="againBtn">もう一度</button>
+      <button class="sub" id="homeBtn">はじめの画面へ</button>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  const TOTAL = 10;
+  const $ = (id) => document.getElementById(id);
+  const S = { game: 'calc', genre: 'all', mode: 'add', level: 'easy', sound: true, screen: 'home', qs: [], i: 0, input: '', tries: 0, marks: [], first: 0, busy: false, picked: null };
+  const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---- 保存（この端末だけ） ----
+  const todayKey = () => 'keisan-' + new Date().toLocaleDateString('sv');
+  function load(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }
+  function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  // 保存データは書きかえられている可能性があるので、数として正しいものだけ使う
+  function todayCount() { const v = load(todayKey(), 0); return Number.isInteger(v) && v >= 0 && v < 100000 ? v : 0; }
+  function addToday() { save(todayKey(), todayCount() + 1); }
+  const savePref = () => save('keisan-pref', { game: S.game, genre: S.genre, mode: S.mode, level: S.level, sound: S.sound });
+
+  // ---- 漢数字（日めくりの表記） ----
+  function kan(n) {
+    const d = '〇一二三四五六七八九';
+    if (n < 10) return d[n];
+    const t = Math.floor(n / 10), o = n % 10;
+    return (t > 1 ? d[t] : '') + '十' + (o ? d[o] : '');
+  }
+
+  // ---- 問題づくり ----
+  const r = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+  function makeQ(mode, level) {
+    if (mode === 'mix') mode = ['add', 'sub', 'mul'][r(0, 2)];
+    // 答えはどのむずかしさでも3けたまで
+    const L = { easy: 0, normal: 1, hard: 2 }[level];
+    let a, b, op, ans;
+    if (mode === 'add') {
+      [a, b] = [[r(1, 9), r(1, 9)], [r(10, 59), r(3, 39)], [r(100, 499), r(100, 499)]][L];
+      op = '＋'; ans = a + b;
+    } else if (mode === 'sub') {
+      const [x, y] = [[r(1, 9), r(1, 9)], [r(5, 59), r(3, 39)], [r(100, 499), r(100, 499)]][L];
+      a = x + y; b = y; op = '－'; ans = x;
+    } else {
+      [a, b] = [[r(1, 5), r(1, 9)], [r(2, 9), r(2, 9)], [r(101, 199), r(2, 5)]][L];
+      op = '×'; ans = a * b;
+    }
+    return { text: a + ' ' + op + ' ' + b, ans };
+  }
+  function makeSet() {
+    const list = [];
+    while (list.length < TOTAL) {
+      const q = makeQ(S.mode, S.level);
+      if (!list.some((p) => p.text === q.text)) list.push(q);
+    }
+    return list;
+  }
+
+  // ---- 4択クイズの問題（先頭の選択肢が正解。出すときに並べかえる） ----
+  // 古くならない問題
+  const QUIZ = [
+    { tag: '季節', q: '十五夜のお月見で、お供えする代表的なものは？', c: ['月見だんご', '柏餅', 'ひなあられ', 'ちまき'], m: '十五夜は昔のこよみの8月15日の月。いっしょに飾るススキは、実った稲穂に見立てたものといわれます。' },
+    { tag: '季節', q: '冬至の日に入るとよいとされるお風呂は？', c: ['ゆず湯', '菖蒲湯', '桃の湯', 'よもぎ湯'], m: '「冬至」と「湯治」をかけた、という説もあります。菖蒲湯は5月の端午の節句に入るお風呂です。' },
+    { tag: '季節', q: '1年でいちばん昼が短い日は？', c: ['冬至', '夏至', '春分の日', '秋分の日'], m: '東京の冬至の昼の長さは約9時間45分。夏至とくらべると、約5時間も短くなります。' },
+    { tag: '季節', q: '「春の七草」に入っていないものは？', c: ['ききょう', 'なずな', 'すずな', 'すずしろ'], m: 'ききょうは「秋の七草」です。すずなはカブ、すずしろは大根のこと。七草がゆは1月7日に食べます。' },
+    { tag: '季節', q: '5月5日、端午の節句に食べるお菓子は？', c: ['柏餅', '桜餅', 'おはぎ', '月見だんご'], m: '柏の葉は、新しい芽が育つまで古い葉が落ちません。そこから「家が絶えない」縁起物とされてきました。' },
+    { tag: '季節', q: '節分の豆まきのかけ声は？', c: ['鬼は外、福は内', '福は外、鬼は内', '鬼さんこちら', 'ごめんください'], m: '節分は「季節を分ける」日。もともとは立春・立夏・立秋・立冬の前の日、年に4回ありました。' },
+    { tag: '季節', q: '「お彼岸」は1年に何回ある？', c: ['2回', '1回', '4回', '12回'], m: '春分の日と秋分の日をまん中にした7日間です。「暑さ寒さも彼岸まで」と言いますね。' },
+    { tag: '季節', q: '七夕の織姫と彦星。二人を隔てている川は？', c: ['天の川', '三途の川', '隅田川', '鴨川'], m: '織姫は「こと座」のベガ、彦星は「わし座」のアルタイルという星です。' },
+    { tag: '季節', q: '10月の昔の呼び名「神無月」。出雲地方では何と呼ぶ？', c: ['神在月', '神来月', '神集月', '神楽月'], m: '10月には全国の神様が出雲大社に集まるとされ、出雲だけは神様がいる月「神在月」になります。' },
+    { tag: '季節', q: '昔の呼び名で「師走」は何月？', c: ['12月', '1月', '3月', '6月'], m: '年の暮れは、お坊さん（師）も走り回るほど忙しいから、という説がよく知られています。' },
+    { tag: 'くらし', q: '「敬老の日」は何月？', c: ['9月', '5月', '10月', '11月'], m: '昔は9月15日と決まっていましたが、2003年から「9月の第3月曜日」になりました。' },
+    { tag: 'くらし', q: '「8020（はちまるにいまる）運動」とは？', c: ['80歳で歯を20本残そう', '80歳まで毎日20分歩こう', '1日8000歩、20時に寝よう', '80点以上を20回とろう'], m: '歯が20本あれば、たいていの物をかんで食べられるといわれます。1989年に始まった運動です。' },
+    { tag: 'ことわざ', q: '「猫に〇〇」。〇〇に入るのは？', c: ['小判', '鰹節', '真珠', '鈴'], m: '値打ちがわからない人に良い物をあげてもむだ、という意味。「豚に真珠」も同じ意味で、こちらは聖書から来た言葉です。' },
+    { tag: 'ことわざ', q: '「〇〇の川流れ」。名人でも失敗する、という意味。〇〇は？', c: ['河童', '猿', '鯉', '亀'], m: '同じ意味のことわざに「猿も木から落ちる」「弘法にも筆の誤り」があります。' },
+    { tag: 'ことわざ', q: '「石の上にも〇年」。〇に入る数は？', c: ['三', '一', '五', '十'], m: '冷たい石でも三年座り続ければ温まる。がまん強く続ければ報われる、というたとえです。' },
+    { tag: 'ことわざ', q: '「急がば〇〇」。〇〇に入るのは？', c: ['回れ', '走れ', '止まれ', '休め'], m: '室町時代の歌が元とされます。琵琶湖を船で渡るより、遠回りでも瀬田の橋を歩くほうが確か、という内容です。' },
+    { tag: 'ことわざ', q: '「笑う門には〇来たる」。〇に入るのは？', c: ['福', '春', '鬼', '客'], m: 'いつも笑い声のある家には、自然と幸せがやってくる、という意味です。' },
+    { tag: '漢字', q: '「紫陽花」の読み方は？', c: ['あじさい', 'すみれ', 'ききょう', 'あさがお'], m: '土が酸性だと青っぽく、アルカリ性だと赤っぽい花になります。土で色が変わる花です。' },
+    { tag: '漢字', q: '「向日葵」の読み方は？', c: ['ひまわり', 'たんぽぽ', 'あやめ', 'なでしこ'], m: '太陽を追って向きを変えるのは、つぼみのころまで。花が開くと、ほとんど東を向いたままになります。' },
+    { tag: '漢字', q: '「秋刀魚」の読み方は？', c: ['さんま', 'さわら', 'たちうお', 'かつお'], m: '刀のように細長く光る姿で、秋においしくなる魚だから、この字が当てられています。' },
+    { tag: '漢字', q: '「蒲公英」の読み方は？', c: ['たんぽぽ', 'れんげ', 'つくし', 'よもぎ'], m: '綿毛はひとつひとつがタネ。風に乗って何キロも飛んでいくことがあります。' },
+    { tag: '地理', q: '日本でいちばん長い川は？', c: ['信濃川', '利根川', '石狩川', '四万十川'], m: '長さは367キロ。長野県では「千曲川」と呼ばれ、新潟県に入ると「信濃川」になります。' },
+    { tag: '地理', q: '日本でいちばん大きい湖は？', c: ['琵琶湖', '霞ヶ浦', '浜名湖', '十和田湖'], m: '滋賀県の広さのおよそ6分の1をしめています。京都や大阪の水道水にも使われています。' },
+    { tag: '地理', q: '富士山の高さは？', c: ['3776メートル', '2776メートル', '3176メートル', '4776メートル'], m: '「みななろう（3776）」と覚える方法があります。2013年に世界文化遺産になりました。' },
+    { tag: '地理', q: '日本の都道府県の数は？', c: ['47', '43', '48', '50'], m: '1都（東京）・1道（北海道）・2府（大阪・京都）・43県です。' },
+    { tag: 'なつかし', q: '1964年、東京オリンピックの直前に開業したのは？', c: ['東海道新幹線', '青函トンネル', '東京スカイツリー', '瀬戸大橋'], m: '開業は10月1日。オリンピックの開会式があった10月10日は、のちに「体育の日」になりました。' },
+    { tag: 'なつかし', q: '1970年の大阪万博のシンボル、岡本太郎さんの作品は？', c: ['太陽の塔', '通天閣', '自由の女神', '平和の像'], m: '万博の会場あとは今、万博記念公園になっていて、太陽の塔は中に入って見学することもできます。' },
+    { tag: 'なつかし', q: '1958年に完成した東京タワーの高さは？', c: ['333メートル', '634メートル', '250メートル', '450メートル'], m: '東京スカイツリーは634メートル。「むさし（武蔵）」と覚えられる高さです。' },
+    { tag: 'なつかし', q: '1958年に発売された、世界初のインスタントラーメンは？', c: ['チキンラーメン', 'カップヌードル', 'サッポロ一番', '出前一丁'], m: '日清食品の安藤百福さんが、大阪の自宅の小屋で研究して生み出しました。' },
+    { tag: 'なつかし', q: '昭和30年代の「三種の神器」に入らない家電は？', c: ['電子レンジ', '白黒テレビ', '電気洗濯機', '電気冷蔵庫'], m: 'のちの「新・三種の神器」はカラーテレビ・クーラー・自動車。英語の頭文字から「3C」と呼ばれました。' },
+    { tag: 'ことわざ', q: '「二階から〇〇」。〇〇に入るのは？', c: ['目薬', '水まき', '花火', '富士山'], m: '二階から目薬をさしても、なかなか目に入りません。思うようにいかず、もどかしいことのたとえです。' },
+    { tag: 'ことわざ', q: '「花より〇〇」。〇〇に入るのは？', c: ['団子', '月見', '実', '桜餅'], m: 'お花見で、花をながめるより団子を食べるほうがうれしい。見た目より実際に役立つものを選ぶ、という意味です。' },
+    { tag: '漢字', q: '「土筆」の読み方は？', c: ['つくし', 'わらび', 'ふでばこ', 'すぎな'], m: '土から筆が生えたような姿から、この字が当てられています。スギナという草の、春に出る胞子の茎です。' },
+    { tag: '漢字', q: '「海月」の読み方は？', c: ['くらげ', 'うみうし', 'ひとで', 'なまこ'], m: '海に浮かぶ姿が月のように見えるから、といわれます。「水母」と書くこともあります。' },
+    { tag: '歴史', q: '鎌倉幕府を開いたのは？', c: ['源頼朝', '足利尊氏', '徳川家康', '平清盛'], m: '昔は「いい国（1192）つくろう」と覚えましたが、今の教科書では1185年ごろに始まったとする説がよく書かれています。' },
+    { tag: '歴史', q: '江戸幕府の最後の将軍は？', c: ['徳川慶喜', '徳川家光', '徳川吉宗', '徳川綱吉'], m: '15代将軍です。1867年の「大政奉還」で、政治の権限を朝廷に返しました。' },
+    { tag: '歴史', q: '聖徳太子が定めたとされる、役人の心得は？', c: ['十七条の憲法', '大宝律令', '武家諸法度', '五箇条の御誓文'], m: '最初に書かれた「和をもって貴しとなす」という言葉が、とくに有名です。' },
+    { tag: '歴史', q: '「天下分け目の戦い」と呼ばれる、1600年の戦いは？', c: ['関ヶ原の戦い', '桶狭間の戦い', '長篠の戦い', '壇ノ浦の戦い'], m: '今の岐阜県関ケ原町が舞台です。勝った徳川家康は、3年後に江戸幕府を開きました。' },
+    { tag: '歴史', q: '江戸時代に、歩いて日本全国の正確な地図を作った人は？', c: ['伊能忠敬', '杉田玄白', '松尾芭蕉', '葛飾北斎'], m: '50歳で家業をゆずってから天文学を学び、55歳から17年かけて全国を測って歩きました。' },
+    { tag: '生きもの', q: 'キリンの長い首。首の骨の数はいくつ？', c: ['7個', '20個', '50個', '100個'], m: '実は人間と同じ7個です。キリンは、その一つ一つがとても長いのです。' },
+    { tag: '生きもの', q: 'ラッコが海で眠るとき、流されないようにすることは？', c: ['海藻を体に巻きつける', '岩にしがみつく', '砂にもぐる', '仲間の背中に乗る'], m: '海藻（ケルプ）を体に巻いて眠ります。仲間と手をつないで眠る姿も見られます。' },
+    { tag: '生きもの', q: 'ホタルが光るのは、体のどこ？', c: ['おしりの先', '頭', '羽', '目'], m: '光り方の違いで、仲間に合図を送っています。地域によって点滅の速さが違うホタルもいます。' },
+    { tag: '生きもの', q: '1日に20時間ほど眠るといわれる動物は？', c: ['コアラ', 'ゾウ', 'キリン', 'イルカ'], m: '食べ物のユーカリの葉は栄養が少なく、消化に時間がかかります。体力を使わないよう、よく眠るのです。' },
+    { tag: '生きもの', q: 'タンチョウ（丹頂鶴）の「丹頂」とは、どういう意味？', c: ['頭のてっぺんが赤い', '尾が長い', '首が白い', '足が黒い'], m: '「丹」は赤、「頂」はてっぺんのこと。赤いのは羽ではなく、むき出しの皮膚の色です。' },
+    { tag: '生きもの', q: 'サケが卵を産むために帰ってくるのは？', c: ['生まれた川', 'いちばん近い海', '大きな湖', '南の島'], m: '川のにおいを手がかりに、何千キロも旅して生まれた川へ戻ってくるといわれます。' },
+    { tag: '食べもの', q: '料理の「さしすせそ」。「せ」は何？', c: ['しょうゆ', 'せり', 'セロリ', '背脂'], m: 'さ＝砂糖、し＝塩、す＝酢、せ＝しょうゆ（昔は「せうゆ」と書いた）、そ＝みそ。味をつける順番ともいわれます。' },
+    { tag: '食べもの', q: 'お寿司屋さんで「あがり」といえば？', c: ['お茶', 'しょうゆ', 'しょうがの甘酢漬け', 'お会計'], m: 'しょうゆは「むらさき」、しょうがは「ガリ」と呼びます。お会計は「おあいそ」です。' },
+    { tag: '食べもの', q: '和歌山県で生まれた、梅干しで有名な梅の品種は？', c: ['南高梅', '白加賀', '豊後', '甲州小梅'], m: '和歌山県は梅の収穫量が日本一。全国の半分以上をしめています。' },
+    { tag: '食べもの', q: '夏の「土用の丑の日」に食べる習わしがあるのは？', c: ['うなぎ', 'そうめん', 'すいか', 'かぼちゃ'], m: '江戸時代の学者、平賀源内が広めたという話がよく知られています。' },
+    { tag: '食べもの', q: '「信州そば」で知られる、そばの名産地は？', c: ['長野県', '新潟県', '山形県', '島根県'], m: '「信州」は長野県の昔の呼び名です。寒さと昼夜の気温差が、そば作りに向いています。' },
+    { tag: '食べもの', q: 'おせち料理の「数の子」は、何という魚の卵？', c: ['ニシン', 'サケ', 'タラ', 'ボラ'], m: '小さな卵がたくさん集まっているので、「子どもや孫がたくさん生まれますように」という願いがこめられています。' },
+    { tag: 'ひっかけ', q: '1キロの鉄と1キロの綿。重いのはどっち？', c: ['どちらも同じ', '鉄', '綿', '日によって変わる'], m: 'どちらも1キロなので同じ重さです。「鉄は重い」という思いこみを使ったひっかけです。' },
+    { tag: 'ひっかけ', q: '1年のうち、「28日」がある月はいくつ？', c: ['12か月ぜんぶ', '1か月（2月だけ）', '2か月', '6か月'], m: 'どの月にも28日はあります。2月を思いうかべた方、ひっかかりましたね。' },
+    { tag: 'ひっかけ', q: '本物のジャイアントパンダの、しっぽの色は？', c: ['白', '黒', '茶色', '灰色'], m: 'ぬいぐるみやイラストでは黒く描かれることが多いのですが、本物のしっぽは白です。' },
+    { tag: 'ひっかけ', q: 'かけっこで、2位の人を追い抜きました。あなたは今、何位？', c: ['2位', '1位', '3位', '最下位'], m: '2位の人を抜くと、自分が2位になります。1位と答えたくなりますね。' },
+    { tag: 'ひっかけ', q: 'ペンギンの足、本当はどうなっている？', c: ['長い足を体の中で曲げている', '見たとおり短い', 'ひざがない', '骨がない'], m: '羽毛の中で、ひざを曲げたままの「空気いす」のような姿勢で立っています。' },
+    { tag: 'ひっかけ', q: '信号機の「青」。実際の色に近いのは？', c: ['緑色', '青色', '水色', '紫色'], m: '昔の日本語では緑も「青」と呼びました（青葉、青りんご）。そのため緑色の信号も「青信号」と呼ばれます。' },
+    { tag: 'ひっかけ', q: '日本の「国鳥」は？', c: ['キジ', 'トキ', 'ツル', 'ハト'], m: 'トキと思う方も多いのですが、国鳥はキジです。桃太郎のお供にも出てきますね。' },
+    { tag: 'ひっかけ', q: 'シマウマのしま模様の毛をそると、下の肌は何色？', c: ['黒っぽい色', '白', 'しま模様', 'ピンク'], m: '肌は黒っぽい色をしています。「白地に黒じま」とも「黒地に白じま」ともいえるのです。' },
+    { tag: 'ひっかけ', q: '野生のペンギンがすんでいるのは？', c: ['南極など南半球', '北極', '北極と南極の両方', '赤道の上だけ'], m: '野生のペンギンは南半球にだけすんでいます。北極にいるのはシロクマ（ホッキョクグマ）です。' },
+    { tag: 'ひっかけ', q: '3人で3分かけて、おにぎりを3個作ります。100人で100個作るには何分？', c: ['3分', '100分', '1分', '33分'], m: '1人が3分で1個作る計算です。100人いれば、100個もやはり3分でできます。' },
+    { tag: 'ひっかけ', q: 'バナナがなる植物は、何の仲間？', c: ['大きな草', '木', 'つる植物', 'きのこ'], m: '幹のように見えるのは、葉が何枚も重なったもの。バナナは木ではなく、大きな草です。' },
+    { tag: 'ひっかけ', q: 'イチゴの本当の「実」はどこ？', c: ['表面のつぶつぶ', '赤い部分ぜんぶ', '中の白い部分', 'へたの部分'], m: '赤い部分は花の土台がふくらんだもの。つぶつぶの一つ一つが、植物学でいう本当の実です。' },
+    { tag: 'なぞなぞ', q: 'パンはパンでも、食べられないパンは？', c: ['フライパン', 'あんパン', '食パン', 'メロンパン'], m: '昔からある、いちばん有名ななぞなぞのひとつ。「パンダ」と答える人もいます。' },
+    { tag: 'なぞなぞ', q: '上は大水、下は大火事。これなあに？', c: ['お風呂', 'やかん', '火山', '雨の日'], m: '下でまきを燃やして沸かした、昔のお風呂（五右衛門風呂）の様子です。' },
+    { tag: 'なぞなぞ', q: '朝は4本足、昼は2本足、夜は3本足。これなあに？', c: ['人間', 'イヌ', 'いす', 'カエル'], m: '赤ちゃんはハイハイ、大人は2本足、年をとると杖をついて3本足。ギリシャ神話のスフィンクスが出したなぞです。' },
+    { tag: 'なぞなぞ', q: '「とり」は「とり」でも、空を飛ばない「とり」は？', c: ['ちりとり', 'つばめ', 'すずめ', 'からす'], m: 'ほかにも「虫とり」「草とり」「しりとり」などがありますね。' },
+    { tag: 'なぞなぞ', q: '逆さに読むと「軽い」になる動物は？', c: ['イルカ', 'クジラ', 'ラッコ', 'カバ'], m: '「イルカ」を逆さに読むと「カルイ」。ちなみに「カバ」を逆さにすると「バカ」です。' },
+    { tag: 'なぞなぞ', q: '上から読んでも下から読んでも同じなのは？', c: ['しんぶんし', 'てがみ', 'ざっし', 'はがき'], m: 'こうした言葉を「回文」といいます。「たけやぶやけた」も有名です。' },
+    { tag: 'なぞなぞ', q: 'お父さんがきらいな果物は？', c: ['パパイヤ', 'バナナ', 'みかん', 'ぶどう'], m: '「パパ、イヤ」だから。言われたお父さんは、ちょっとさみしいですね。' },
+    { tag: 'なぞなぞ', q: '「いす」は「いす」でも、座れない「いす」は？', c: ['アイス', 'ソファー', 'ベンチ', '車いす'], m: 'ほかに「アドバイス」も座れない「いす」です。' },
+    { tag: 'なぞなぞ', q: 'かけると見えるようになって、はずすとぼやけるものは？', c: ['めがね', 'ぼうし', 'マスク', '手ぬぐい'], m: '日本に眼鏡を伝えたのは、戦国時代に来た宣教師フランシスコ・ザビエルだという説がよく知られています。' },
+    { tag: 'なぞなぞ', q: '切っても切っても、切れないものは？', c: ['水', '紙', '大根', 'ひも'], m: '包丁で水を切っても、すぐ元どおり。「親子の縁」と答えるのも正解とされることがあります。' }
+  ];
+  // ジャンルと、そこに入る問題の種類（どのジャンルも10問以上ある）
+  const GENRES = {
+    trick: ['ひっかけ'], riddle: ['なぞなぞ'], word: ['ことわざ', '漢字'],
+    season: ['季節', 'くらし'], history: ['地理', 'なつかし', '歴史'], life: ['生きもの', '食べもの']
+  };
+  // 時事（2026年秋の話題。ときどき入れかえる）
+  const JIJI = [
+    { tag: '時事', q: '2026年のプロ野球・日本シリーズで日本一になったのは？', c: ['福岡ソフトバンクホークス', '横浜DeNAベイスターズ', '阪神タイガース', '読売ジャイアンツ'], m: '横浜DeNAベイスターズに負けなしの4連勝。2年連続の日本一です。' },
+    { tag: '時事', q: '2026年、阪神の佐藤輝明選手が成しとげた、打率・ホームラン・打点の3つで1位になることを何という？', c: ['三冠王', '三冠馬', '三役', '三種の神器'], m: 'セ・リーグでは、2022年の村上宗隆選手以来4年ぶりの三冠王です。' },
+    { tag: '時事', q: '2026年のノーベル化学賞を受けた硤合憲三（そあい けんそう）さん。どこの大学の先生？', c: ['東京理科大学', '京都大学', '東北大学', '大阪大学'], m: 'できた物質が、自分と同じ形の物質を増やす手助けをする反応を、世界で初めて見つけました。日本人の化学賞は10人目です。' },
+    { tag: '時事', q: '将棋の西山朋佳さんが、2026年に「女性で初めて」なることが決まったのは？', c: ['棋士（プロの将棋指し）', '名人', '将棋連盟の会長', '女流棋士'], m: 'これまで女性は「女流棋士」として活躍してきましたが、「棋士」になった女性はいませんでした。来年4月に四段の棋士になります。' },
+    { tag: '時事', q: '2026年の文化勲章に、ゲームの分野から初めて選ばれた宮本茂さん。生み出したゲームは？', c: ['スーパーマリオ', 'テトリス', 'パックマン', 'ドラゴンクエスト'], m: '任天堂のゲーム作りの中心人物で、『ゼルダの伝説』も宮本さんの作品です。勲章は11月3日の文化の日に授けられます。' },
+    { tag: '時事', q: '2026年の秋、アジア競技大会が開かれた日本の地域は？', c: ['愛知県・名古屋', '北海道・札幌', '福岡県・福岡', '東京都'], m: '9月19日から10月4日まで開かれ、日本のメダルの数は過去最高でした。日本でのアジア大会は1994年の広島以来です。' }
+  ];
+  const JIJI_WHEN = '2026年秋';
+  const JIJI_PER_ROUND = 2;
+  const KANA = ['ア', 'イ', 'ウ', 'エ'];
+  function shuffle(a) { a = a.slice(); for (let k = a.length - 1; k > 0; k--) { const j = r(0, k); [a[k], a[j]] = [a[j], a[k]]; } return a; }
+  function makeQuizSet(genre, count = TOTAL, jiji = JIJI_PER_ROUND) {
+    const picks = genre === 'all'
+      ? shuffle(JIJI).slice(0, jiji).concat(shuffle(QUIZ).slice(0, count - jiji))
+      : shuffle(QUIZ.filter((p) => GENRES[genre].includes(p.tag))).slice(0, count);
+    return shuffle(picks).map((p) => {
+      const opts = shuffle(p.c);
+      return { tag: p.tag, q: p.q, m: p.m, opts, ans: opts.indexOf(p.c[0]) };
+    });
+  }
+
+  // ---- 花丸（うずまき＋花びら）を一筆書きで ----
+  (function buildHanamaru() {
+    const pts = [];
+    const turns = 2.1, start = -Math.PI / 2;
+    for (let t = 0; t <= 1; t += 0.008) {
+      const th = start + t * Math.PI * 2 * turns, rr = 5 + t * 23;
+      pts.push([rr * Math.cos(th), rr * Math.sin(th)]);
+    }
+    const base = start + Math.PI * 2 * turns;
+    for (let t = 0; t <= 1.06; t += 0.004) {
+      const rel = t * Math.PI * 2, th = base + rel;
+      const rr = 32 + 11 * Math.abs(Math.sin(rel * 2.5)) + t * 1.5;
+      pts.push([rr * Math.cos(th), rr * Math.sin(th)]);
+    }
+    const d = 'M' + pts.map((p) => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L');
+    document.querySelectorAll('.hanamaru path').forEach((p) => p.setAttribute('d', d));
+  })();
+  function hana(showIt, p = $('hanaPath')) {
+    const len = p.getTotalLength();
+    p.style.transition = 'none';
+    p.style.strokeDasharray = len;
+    p.style.strokeDashoffset = showIt && calm ? 0 : len;
+    if (showIt && !calm) {
+      p.getBoundingClientRect();
+      p.style.transition = 'stroke-dashoffset .75s ease-in-out';
+      p.style.strokeDashoffset = 0;
+    }
+  }
+
+  // ---- 紙の厚み（残り枚数ぶん重ねる） ----
+  function thickness(el, n) {
+    const layers = [];
+    for (let k = 1; k <= Math.min(n, 9); k++) layers.push('0 ' + (k * 3) + 'px 0 -' + Math.min(k, 6) + 'px ' + (k % 2 ? '#e6e7ea' : '#c9ccd3'));
+    el.style.boxShadow = layers.join(',');
+  }
+
+  // ---- 音 ----
+  let ac = null;
+  function tone(freqs, dur) {
+    if (!S.sound) return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      freqs.forEach((f, n) => {
+        const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + n * dur;
+        o.type = 'sine'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + 0.02);
+      });
+    } catch (e) {}
+  }
+
+  // ---- 画面 ----
+  function show(name) {
+    S.screen = name;
+    ['home', 'play', 'quiz', 'result'].forEach((n) => { $(n).hidden = n !== name; });
+    window.scrollTo(0, 0);
+  }
+  function renderHome() {
+    const now = new Date(), w = now.getDay();
+    $('wareki').textContent = '令和' + kan(now.getFullYear() - 2018) + '年';
+    $('month').textContent = kan(now.getMonth() + 1) + '月';
+    $('day').textContent = now.getDate();
+    $('weekday').textContent = '日月火水木金土'[w] + '曜日';
+    [$('day'), $('weekday')].forEach((el) => { el.classList.toggle('is-sun', w === 0); el.classList.toggle('is-sat', w === 6); });
+    document.querySelectorAll('#games .choice').forEach((b) => b.setAttribute('aria-pressed', b.dataset.game === S.game));
+    document.querySelectorAll('#genres .choice').forEach((b) => b.setAttribute('aria-pressed', b.dataset.genre === S.genre));
+    $('calcOpts').hidden = S.game === 'quiz';
+    $('modeGroup').hidden = S.game !== 'calc';
+    $('quizOpts').hidden = S.game !== 'quiz';
+    $('quizNote').hidden = S.game === 'calc';
+    $('quizNote').textContent = S.game === 'mix'
+      ? '計算5問とクイズ5問が、ばらばらの順番で出ます。むずかしさは計算の問題に使います。'
+      : S.genre === 'all' ? '季節・ことわざ・ひっかけなど10問。最近のニュースからも2問出ます。' : '選んだジャンルから10問出ます。';
+    document.querySelectorAll('#modes .choice').forEach((b) => b.setAttribute('aria-pressed', b.dataset.mode === S.mode));
+    document.querySelectorAll('#levels .choice').forEach((b) => b.setAttribute('aria-pressed', b.dataset.level === S.level));
+    $('soundBtn').setAttribute('aria-pressed', S.sound);
+    $('soundState').textContent = S.sound ? 'あり' : 'なし';
+    $('todayCount').textContent = todayCount();
+    thickness($('homeStack'), 9);
+  }
+  function renderPlay() {
+    const q = S.qs[S.i];
+    $('qno').textContent = S.i + 1;
+    $('left').textContent = 'のこり ' + (TOTAL - S.i - 1) + ' 枚';
+    $('qText').textContent = q.text + ' ＝';
+    $('qText').classList.toggle('long', q.text.length > 7);
+    const ans = $('ans');
+    ans.textContent = S.input || '？';
+    ans.classList.toggle('empty', !S.input);
+    renderMarks($('marks'));
+    $('pad').setAttribute('aria-disabled', S.busy);
+    thickness($('playStack'), TOTAL - S.i - 1);
+  }
+  // HTMLの文字列を組み立てず、要素を作って文字は textContent で入れる
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+  function renderMarks(box) {
+    box.replaceChildren(...Array.from({ length: TOTAL }, (_, n) => {
+      const m = S.marks[n];
+      return el('span', 'mark' + (m === 'ok' || m === 'ng' ? ' ' + m : n === S.i ? ' now' : ''));
+    }));
+  }
+  function setFeedback(text, kind) {
+    const f = $('feedback');
+    f.textContent = text;
+    f.className = 'feedback' + (kind ? ' ' + kind : '');
+    if (kind) { void f.offsetWidth; f.classList.add('pop'); }
+  }
+  function freshSheet() {
+    $('ans').classList.remove('red');
+    hana(false);
+    setFeedback('数字を押して「こたえる」');
+  }
+
+  // ---- クイズの画面 ----
+  function renderQuiz() {
+    const q = S.qs[S.i], done = S.picked !== null;
+    $('zno').textContent = S.i + 1;
+    $('ztag').textContent = q.tag === '時事' ? '時事　' + JIJI_WHEN : q.tag;
+    $('ztag').classList.toggle('jiji', q.tag === '時事');
+    $('zq').textContent = q.q;
+    $('opts').replaceChildren(...q.opts.map((o, n) => {
+      const b = el('button', 'opt' + (done && n === q.ans ? ' right' : done && n === S.picked ? ' wrong' : ''));
+      b.dataset.n = n;
+      b.append(el('span', 'kana', KANA[n]), el('span', '', o));
+      return b;
+    }));
+    $('opts').setAttribute('aria-disabled', done);
+    $('zmame').hidden = !done;
+    $('zmameText').textContent = q.m;
+    $('nextBtn').hidden = !done;
+    $('nextBtn').textContent = S.i + 1 >= TOTAL ? '結果を見る' : 'つぎへ';
+    renderMarks($('quizMarks'));
+    thickness($('quizStack'), TOTAL - S.i - 1);
+  }
+  function freshQuizSheet() {
+    hana(false, $('hanaPath2'));
+    $('zfb').textContent = ''; $('zfb').className = 'feedback';
+  }
+  function pick(n) {
+    if (S.picked !== null) return;
+    const q = S.qs[S.i];
+    S.picked = n;
+    const f = $('zfb');
+    if (n === q.ans) {
+      S.marks[S.i] = 'ok'; S.first++;
+      addToday();
+      tone([660, 880], 0.14);
+      hana(true, $('hanaPath2'));
+      f.textContent = 'せいかい！'; f.className = 'feedback ok';
+    } else {
+      S.marks[S.i] = 'ng';
+      tone([300], 0.18);
+      f.textContent = '答えは「' + q.opts[q.ans] + '」'; f.className = 'feedback ng';
+    }
+    void f.offsetWidth; f.classList.add('pop');
+    renderQuiz();
+    $('nextBtn').focus({ preventScroll: true });
+    // 豆知識が増えた分、「つぎへ」が画面の外に出ないようにする
+    const nb = $('nextBtn').getBoundingClientRect();
+    if (nb.bottom > window.innerHeight) window.scrollBy({ top: nb.bottom - window.innerHeight + 16, behavior: calm ? 'auto' : 'smooth' });
+  }
+  function nextQuiz() {
+    const sheet = $('zsheet');
+    const go = () => {
+      sheet.classList.remove('tear');
+      S.i++; S.picked = null;
+      if (S.i >= TOTAL) return finish();
+      showCurrent();
+    };
+    if (calm) return go();
+    sheet.classList.add('tear');
+    setTimeout(go, 500);
+  }
+
+  // ---- 進行 ----
+  // 計算5問＋クイズ5問（時事1問）をまぜる
+  function makeMixSet() {
+    const calc = [];
+    while (calc.length < 5) {
+      const q = makeQ('mix', S.level);
+      if (!calc.some((p) => p.text === q.text)) calc.push(q);
+    }
+    return shuffle(calc.concat(makeQuizSet('all', 5, 1)));
+  }
+  // 今の問題が計算かクイズかで、画面を切りかえる
+  function showCurrent() {
+    const isQuiz = !!S.qs[S.i].opts, sheet = isQuiz ? $('zsheet') : $('qsheet');
+    const target = isQuiz ? 'quiz' : 'play';
+    if (S.screen !== target) show(target); else window.scrollTo(0, 0);
+    if (isQuiz) { freshQuizSheet(); renderQuiz(); } else { freshSheet(); renderPlay(); }
+    if (!calm && S.i > 0) { sheet.classList.remove('enter'); void sheet.offsetWidth; sheet.classList.add('enter'); }
+  }
+  function startGame() {
+    S.i = 0; S.input = ''; S.tries = 0; S.marks = []; S.first = 0; S.busy = false; S.picked = null;
+    S.qs = S.game === 'quiz' ? makeQuizSet(S.genre) : S.game === 'mix' ? makeMixSet() : makeSet();
+    S.screen = '';
+    showCurrent();
+  }
+  function next() {
+    const sheet = $('qsheet');
+    const go = () => {
+      sheet.classList.remove('tear');
+      S.busy = false; S.i++; S.input = ''; S.tries = 0; S.picked = null;
+      if (S.i >= TOTAL) return finish();
+      showCurrent();
+    };
+    if (calm) return go();
+    sheet.classList.add('tear');
+    setTimeout(go, 500);
+  }
+  function submit() {
+    if (S.busy || !S.input) return;
+    const q = S.qs[S.i];
+    if (Number(S.input) === q.ans) {
+      if (S.tries === 0) S.first++;
+      S.marks[S.i] = 'ok'; S.busy = true;
+      addToday();
+      tone([660, 880], 0.14);
+      hana(true);
+      setFeedback(S.tries === 0 ? 'せいかい！' : 'せいかい！よく考えました', 'ok');
+      renderPlay(); setTimeout(next, 1500);
+    } else if (S.tries === 0) {
+      S.tries = 1; S.input = '';
+      tone([300], 0.18);
+      setFeedback('おしい！もう一度どうぞ', 'ng');
+      renderPlay();
+    } else {
+      S.marks[S.i] = 'ng'; S.busy = true; S.input = String(q.ans);
+      setFeedback('答えは ' + q.ans + ' でした', 'ng');
+      renderPlay(); $('ans').classList.add('red');
+      setTimeout(next, 2700);
+    }
+  }
+  function press(k) {
+    if (S.busy) return;
+    if (k === 'ok') return submit();
+    if (k === 'del') S.input = S.input.slice(0, -1);
+    else if (S.input.length < 4) S.input = (S.input === '0' ? '' : S.input) + k;
+    renderPlay();
+  }
+  function finish() {
+    const ok = S.marks.filter((m) => m === 'ok').length;
+    const words = ok === TOTAL ? ['たいへん', 'よくできました'] : ok >= 7 ? ['よく', 'できました'] : ok >= 4 ? ['がんばり', 'ました'] : ['まいにち', 'つづけよう'];
+    $('st1').textContent = words[0]; $('st2').textContent = words[1];
+    $('score').textContent = ok;
+    const now = new Date();
+    $('resDate').textContent = kan(now.getMonth() + 1) + '月' + kan(now.getDate()) + '日';
+    $('detail').textContent = (S.game === 'quiz' ? '4択クイズ' : S.game === 'mix' ? 'ごちゃまぜ' : '1回目で正解 ' + S.first + '問') + ' ／ 今日の合計 ' + todayCount() + '問';
+    show('result');
+    const st = $('stamp'); st.classList.remove('press'); void st.offsetWidth; st.classList.add('press');
+    tone([523, 659, 784], 0.16);
+  }
+
+  // ---- 操作 ----
+  $('games').addEventListener('click', (e) => { const b = e.target.closest('.choice'); if (b) { S.game = b.dataset.game; savePref(); renderHome(); } });
+  $('genres').addEventListener('click', (e) => { const b = e.target.closest('.choice'); if (b) { S.genre = b.dataset.genre; savePref(); renderHome(); } });
+  $('opts').addEventListener('click', (e) => { const b = e.target.closest('.opt'); if (b) pick(Number(b.dataset.n)); });
+  $('nextBtn').addEventListener('click', nextQuiz);
+  $('quitQuizBtn').addEventListener('click', () => { $('zsheet').classList.remove('tear'); renderHome(); show('home'); });
+  $('modes').addEventListener('click', (e) => { const b = e.target.closest('.choice'); if (b) { S.mode = b.dataset.mode; savePref(); renderHome(); } });
+  $('levels').addEventListener('click', (e) => { const b = e.target.closest('.choice'); if (b) { S.level = b.dataset.level; savePref(); renderHome(); } });
+  $('soundBtn').addEventListener('click', () => { S.sound = !S.sound; savePref(); renderHome(); });
+  $('startBtn').addEventListener('click', startGame);
+  $('againBtn').addEventListener('click', startGame);
+  $('homeBtn').addEventListener('click', () => { renderHome(); show('home'); });
+  $('quitBtn').addEventListener('click', () => { S.busy = false; $('qsheet').classList.remove('tear'); renderHome(); show('home'); });
+  $('pad').addEventListener('click', (e) => { const b = e.target.closest('.key'); if (b) press(b.dataset.k); });
+  document.addEventListener('keydown', (e) => {
+    if (S.screen === 'quiz') {
+      if (/^[1-4]$/.test(e.key)) pick(Number(e.key) - 1);
+      return;
+    }
+    if (S.screen !== 'play') return;
+    if (/^[0-9]$/.test(e.key)) press(e.key);
+    else if (e.key === 'Backspace') press('del');
+    else if (e.key === 'Enter') { e.preventDefault(); press('ok'); }
+  });
+
+  // ---- 起動（更新時は途中の状態を引き継ぐ） ----
+  // 読み込んだ設定は、決まった値のどれかであるときだけ使う
+  const CHOICES = {
+    game: ['calc', 'quiz', 'mix'], genre: ['all'].concat(Object.keys(GENRES)),
+    mode: ['add', 'sub', 'mul', 'mix'], level: ['easy', 'normal', 'hard']
+  };
+  function applyPref(p) {
+    if (!p || typeof p !== 'object') return;
+    Object.keys(CHOICES).forEach((k) => { if (CHOICES[k].includes(p[k])) S[k] = p[k]; });
+    if (typeof p.sound === 'boolean') S.sound = p.sound;
+  }
+  const isInt = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
+  const isStr = (v) => typeof v === 'string' && v.length < 300;
+  function validItem(q) {
+    if (!q || typeof q !== 'object') return false;
+    if (q.opts === undefined) return isStr(q.text) && /^\d{1,3} [＋－×] \d{1,3}$/.test(q.text) && isInt(q.ans, 0, 9999);
+    return isStr(q.q) && isStr(q.m) && isStr(q.tag) && Array.isArray(q.opts) && q.opts.length === 4 && q.opts.every(isStr) && isInt(q.ans, 0, 3);
+  }
+  // 更新で引き継いだ途中の状態は、形が正しいときだけ使う
+  function applySession(s) {
+    if (!s || typeof s !== 'object') return;
+    if (!Array.isArray(s.qs) || s.qs.length !== TOTAL || !s.qs.every(validItem)) return;
+    if (!isInt(s.i, 0, TOTAL - 1) || !['play', 'quiz'].includes(s.screen)) return;
+    if (!Array.isArray(s.marks) || s.marks.length > TOTAL || !s.marks.every((m) => m === 'ok' || m === 'ng' || m == null)) return;
+    applyPref(s);
+    Object.assign(S, {
+      qs: s.qs, i: s.i, screen: s.screen, marks: s.marks,
+      first: isInt(s.first, 0, TOTAL) ? s.first : 0,
+      tries: s.tries === 1 ? 1 : 0,
+      input: typeof s.input === 'string' && /^\d{0,4}$/.test(s.input) ? s.input : '',
+      picked: isInt(s.picked, 0, 3) ? s.picked : null,
+      busy: false
+    });
+  }
+  function start(data) {
+    applyPref(load('keisan-pref', null));
+    if (data && data.S) applySession(data.S);
+    renderHome();
+    if (S.screen === 'play' || S.screen === 'quiz') { S.screen = ''; showCurrent(); }
+    else show('home');
+  }
+  window.claude?.hot?.snapshot?.(() => ({ S }));
+  window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+})();
+</script>
+
+</body>
+</html>
